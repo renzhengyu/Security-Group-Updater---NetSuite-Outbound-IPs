@@ -1,0 +1,4 @@
+alibabacloud_ecs20140526==7.6.0
+alibabacloud_tea_openapi==0.4.3
+alibabacloud_tea_util==0.3.14
+alibabacloud_credentials==1.0.7
