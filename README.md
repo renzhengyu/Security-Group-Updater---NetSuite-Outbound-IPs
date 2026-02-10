@@ -8,6 +8,7 @@ NetSuite's outbound IP addresses can change periodically. This script ensures th
 
 ## Features
 
+- **Multi-Group Support**: Syncs multiple security groups across different regions (e.g., Shanghai and Hong Kong) in a single run.
 - **Cross-Platform DNS Discovery**: Uses standard Python `socket` library to resolve `outboundips.netsuite.com`.
 - **Intelligent Diffing**: Only adds new IPs and removes stale ones to minimize API calls and rule changes.
 - **Dry-Run Mode**: Safely preview changes before applying them.
@@ -28,8 +29,13 @@ NetSuite's outbound IP addresses can change periodically. This script ensures th
 
 ## Configuration
 
-Set your Aliyun credentials as environment variables:
+### Default Security Groups
+By default, the script updates two security groups:
+1. **Shanghai Default**: `sg-uf67dcdf6rhingo4wsnc` in `cn-shanghai` (Port 22).
+2. **Hong Kong Custom**: `sg-j6chr1b73i3yyg3hf3gm` in `cn-hongkong` (Port 2222).
 
+### Environment Variables
+Set your Aliyun credentials:
 ```bash
 export ALIBABA_CLOUD_ACCESS_KEY_ID='your_access_key_id'
 export ALIBABA_CLOUD_ACCESS_KEY_SECRET='your_access_key_secret'
@@ -38,27 +44,22 @@ export ALIBABA_CLOUD_ACCESS_KEY_SECRET='your_access_key_secret'
 ## Usage
 
 ### Basic Usage
-
-Run the script with default settings (Port 22, cn-shanghai):
-
+Run the script to sync all default security groups:
 ```bash
 python3 sync_ips.py
 ```
 
 ### Options
-
 ```bash
 python3 sync_ips.py --help
 # usage: sync_ips.py [-h] [--dry-run] [--sg-id SG_ID] [--region REGION] [--port PORT]
 
-# Sync NetSuite outbound IPs to Aliyun Security Group.
-
-# optional arguments:
+# options:
 #   -h, --help       show this help message and exit
 #   --dry-run        Perform a dry run without making changes.
-#   --sg-id SG_ID    Aliyun Security Group ID (default: sg-uf67dcdf6rhingo4wsnc)
-#   --region REGION  Aliyun Region ID (default: cn-shanghai)
-#   --port PORT      Port to open (default 22)
+#   --sg-id SG_ID    Aliyun Security Group ID (overrides defaults)
+#   --region REGION  Aliyun Region ID (used with --sg-id)
+#   --port PORT      Port to open (used with --sg-id)
 ```
 
 ## Automation (Cron)

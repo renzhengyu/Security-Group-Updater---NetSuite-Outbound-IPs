@@ -136,10 +136,26 @@ def main():
     """Main execution block."""
     parser = argparse.ArgumentParser(description="Sync NetSuite outbound IPs to Aliyun Security Group.")
     parser.add_argument("--dry-run", action="store_true", help="Perform a dry run without making changes.")
-    parser.add_argument("--sg-id", default="sg-uf67dcdf6rhingo4wsnc", help="Aliyun Security Group ID.")
-    parser.add_argument("--region", default="cn-shanghai", help="Aliyun Region ID.")
-    parser.add_argument("--port", type=int, default=22, help="Port to open (default 22).")
+    parser.add_argument("--sg-id", help="Aliyun Security Group ID (overrides defaults).")
+    parser.add_argument("--region", help="Aliyun Region ID (used with --sg-id).")
+    parser.add_argument("--port", type=int, help="Port to open (used with --sg-id).")
     args = parser.parse_args()
+
+    # Define default security group configurations
+    default_sgs = [
+        {
+            "id": "sg-uf67dcdf6rhingo4wsnc",
+            "region": "cn-shanghai",
+            "port": 22,
+            "name": "Shanghai Default"
+        },
+        {
+            "id": "sg-j6chr1b73i3yyg3hf3gm",
+            "region": "cn-hongkong",
+            "port": 2222,
+            "name": "Hong Kong Custom"
+        }
+    ]
 
     # Priority 1: Fetch NetSuite IPs as they are public data
     print(f"Fetching latest NetSuite IPs for outboundips.netsuite.com...")
@@ -159,44 +175,59 @@ def main():
         print("Use: export ALIBABA_CLOUD_ACCESS_KEY_ID='...' && export ALIBABA_CLOUD_ACCESS_KEY_SECRET='...'")
         sys.exit(1)
 
-    syncer = AliyunSync(args.region, access_key_id, access_key_secret, args.sg_id, args.dry_run)
-    
-    # Priority 3: Fetch current Aliyun state
-    print(f"Fetching current Aliyun rules for {args.sg_id} (port {args.port})...")
-    try:
-        current_cidr_rules = syncer.get_current_rules(args.port)
-    except Exception as e:
-        print(f"Error fetching Aliyun rules: {e}")
-        sys.exit(1)
-    
-    # Process CIDRs into simple IPs for comparison
-    current_ips = {cidr.split('/')[0] for cidr in current_cidr_rules if '/32' in cidr or '/' not in cidr}
-    print(f"Found {len(current_ips)} existing IP rules.")
+    # Determine which SGs to sync
+    sgs_to_sync = []
+    if args.sg_id:
+        sgs_to_sync.append({
+            "id": args.sg_id,
+            "region": args.region or "cn-shanghai",
+            "port": args.port or 22,
+            "name": "CLI Override"
+        })
+    else:
+        sgs_to_sync = default_sgs
 
-    # Calculate diff
-    ips_to_add = netsuite_ips - current_ips
-    ips_to_remove = current_ips - netsuite_ips
-
-    if not ips_to_add and not ips_to_remove:
-        print("No changes detected. Security group is up to date.")
-        return
-
-    print(f"Planning to add {len(ips_to_add)} IPs and remove {len(ips_to_remove)} IPs.")
-
-    # Execute changes
-    for ip in ips_to_add:
+    for sg in sgs_to_sync:
+        print(f"\n--- Syncing Security Group: {sg['name']} ({sg['id']} in {sg['region']}, port {sg['port']}) ---")
+        
+        syncer = AliyunSync(sg['region'], access_key_id, access_key_secret, sg['id'], args.dry_run)
+        
+        # Priority 3: Fetch current Aliyun state
+        print(f"Fetching current Aliyun rules for {sg['id']} (port {sg['port']})...")
         try:
-            syncer.authorize_ip(ip, args.port)
+            current_cidr_rules = syncer.get_current_rules(sg['port'])
         except Exception as e:
-            print(f"Failed to add {ip}: {e}")
+            print(f"Error fetching Aliyun rules for {sg['id']}: {e}")
+            continue
+        
+        # Process CIDRs into simple IPs for comparison
+        current_ips = {cidr.split('/')[0] for cidr in current_cidr_rules if '/32' in cidr or '/' not in cidr}
+        print(f"Found {len(current_ips)} existing IP rules.")
 
-    for ip in ips_to_remove:
-        try:
-            syncer.revoke_ip(ip, args.port)
-        except Exception as e:
-            print(f"Failed to remove {ip}: {e}")
+        # Calculate diff
+        ips_to_add = netsuite_ips - current_ips
+        ips_to_remove = current_ips - netsuite_ips
 
-    print("Sync complete.")
+        if not ips_to_add and not ips_to_remove:
+            print(f"No changes detected for {sg['name']}. Security group is up to date.")
+            continue
+
+        print(f"Planning to add {len(ips_to_add)} IPs and remove {len(ips_to_remove)} IPs.")
+
+        # Execute changes
+        for ip in ips_to_add:
+            try:
+                syncer.authorize_ip(ip, sg['port'])
+            except Exception as e:
+                print(f"Failed to add {ip}: {e}")
+
+        for ip in ips_to_remove:
+            try:
+                syncer.revoke_ip(ip, sg['port'])
+            except Exception as e:
+                print(f"Failed to remove {ip}: {e}")
+
+    print("\nAll sync tasks complete.")
 
 
 if __name__ == "__main__":
