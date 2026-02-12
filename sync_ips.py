@@ -113,23 +113,54 @@ class AliyunSync:
         self.client.revoke_security_group(request)
 
 
+import subprocess
+
 def get_netsuite_ips():
     """
-    Fetch NetSuite outbound IPs using cross-platform DNS resolution.
+    Fetch NetSuite outbound IPs using robust DNS resolution across multiple resolvers.
     
     Returns:
         set: A set of IP address strings.
     """
     hostname = 'outboundips.netsuite.com'
+    all_ips = set()
+    
+    # 1. Try resolving using 'dig' with multiple resolvers for maximum completeness
+    resolvers = [
+        None,       # System default
+        '8.8.8.8',  # Google
+        '1.1.1.1'   # Cloudflare
+    ]
+    
+    for resolver in resolvers:
+        try:
+            cmd = ['dig', '+short', hostname]
+            if resolver:
+                cmd.insert(1, f"@{resolver}")
+            
+            # Run dig and capture output
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                ips = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+                # Filter for valid IPv4 (simple check)
+                ips = {ip for ip in ips if all(c.isdigit() or c == '.' for c in ip) and ip.count('.') == 3}
+                if ips:
+                    print(f"Resolved {len(ips)} IPs using {'system default' if not resolver else resolver}")
+                    all_ips.update(ips)
+        except Exception as e:
+            print(f"Dig attempt ({resolver or 'default'}) failed: {e}")
+
+    # 2. Fallback/Supplement with socket.getaddrinfo
     try:
-        # socket.getaddrinfo is cross-platform and reliable for resolving all A records
         addr_info = socket.getaddrinfo(hostname, None)
-        # The IP address is the first element of the address tuple (5th element of info)
-        ips = {info[4][0] for info in addr_info if socket.AF_INET == info[0]}
-        return ips
+        socket_ips = {info[4][0] for info in addr_info if socket.AF_INET == info[0]}
+        if socket_ips:
+            print(f"Resolved {len(socket_ips)} IPs using socket.getaddrinfo")
+            all_ips.update(socket_ips)
     except Exception as e:
-        print(f"Error resolving {hostname}: {e}")
-        return set()
+        print(f"Socket resolution failed: {e}")
+
+    return all_ips
 
 
 def main():

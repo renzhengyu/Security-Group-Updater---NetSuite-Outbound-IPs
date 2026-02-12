@@ -9,7 +9,7 @@ NetSuite's outbound IP addresses can change periodically. This script ensures th
 ## Features
 
 - **Multi-Group Support**: Syncs multiple security groups across different regions (e.g., Shanghai and Hong Kong) in a single run.
-- **Cross-Platform DNS Discovery**: Uses standard Python `socket` library to resolve `outboundips.netsuite.com`.
+- **Robust DNS Resolution**: Queries multiple global resolvers (Local, Google, Cloudflare) and unions results to ensure a complete IP list regardless of network environment.
 - **Intelligent Diffing**: Only adds new IPs and removes stale ones to minimize API calls and rule changes.
 - **Dry-Run Mode**: Safely preview changes before applying them.
 - **Aliyun SDK Integration**: Uses the official `alibabacloud-ecs20140526` Python SDK.
