@@ -206,6 +206,7 @@ def main():
         print("Use: export ALIBABA_CLOUD_ACCESS_KEY_ID='...' && export ALIBABA_CLOUD_ACCESS_KEY_SECRET='...'")
         sys.exit(1)
 
+
     # Determine which SGs to sync
     sgs_to_sync = []
     if args.sg_id:
